@@ -11,8 +11,14 @@ func main() {
 		timer *time.Timer // Declare timer as a pointer
 	)
 
+	discardOnce := false
+
 	// Using AfterFunc
 	timer = time.AfterFunc(time.Millisecond, func() {
+		if discardOnce {
+			discardOnce = false
+			return
+		}
 		time.Sleep(time.Second)
 		count++
 		fmt.Println("Timer fired:", count)
@@ -22,7 +28,9 @@ func main() {
 
 	// Reset the timer immediately, regardless of its current state.
 	ok := timer.Reset(time.Millisecond)
-	fmt.Println("timer reset returns: ", ok)
+	if !ok {
+		discardOnce = true
+	}
 
 	time.Sleep(time.Second * 3)
 	timer.Stop()
@@ -33,10 +41,16 @@ func main() {
 Command: go run reset_timer.go
 
 Output:
-timer reset returns:  false
 Timer fired: 1
 Timer fired: 2
-timer stopped
+Timer stopped
 
 Conclusion: a new timer callback is started if timer.Reset returns false.
+
+
+If you uncomment the line#32: discardOnce = true
+
+Output:
+Timer fired: 1
+Timer stopped.
 */
