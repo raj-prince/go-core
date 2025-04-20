@@ -12,7 +12,6 @@ const (
 
 type Block struct {
 	data      []byte
-	writeSeek uint64
 }
 
 func AllocateBlockWithMmap(size uint64) (*Block, error) {
