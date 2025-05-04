@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"sync/atomic"
 )
 
 func BenchmarkNewTimer(b *testing.B) {
@@ -71,6 +72,34 @@ func BenchmarkMutexLockUnlock(b *testing.B) {
 	}
 }
 
+func BenchmarkBoolReset(b *testing.B) {
+	reset := true
+	defer func() {
+		ok := false
+		if ok {
+			b.Log(reset)
+		}
+	}()
+
+	for i := 0; i < b.N; i++ {
+		reset = true
+	}
+}
+
+func BenchmarkAtomicBoolReset(b *testing.B) {
+	var reset atomic.Bool
+	defer func() {
+		ok := false
+		if ok {
+			b.Log(reset.Load())
+		}
+	}()
+
+	for i := 0; i < b.N; i++ {
+		reset.Store(false)
+	}
+}
+
 /**
 Command: go test -bench . -test.benchmem
 
@@ -85,5 +114,7 @@ BenchmarkUpdateTime-96                  31013109                38.68 ns/op     
 BenchmarkChannelFromTime-96              4458170               270.9 ns/op           248 B/op          3 allocs/op
 BenchmarkTimerStop-96                   29053162                41.45 ns/op            0 B/op          0 allocs/op
 BenchmarkMutexLockUnlock-96             86282263                12.69 ns/op            0 B/op          0 allocs/op
+BenchmarkBoolReset-96    				1000000000	         	0.2957 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAtomicBoolReset-96    			194613294	         	6.168 ns/op	       	   0 B/op	       0 allocs/op
 PASS
 */
