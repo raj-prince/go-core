@@ -1,47 +1,42 @@
 ```yaml
 # GCSFuse config for a training workload with high random reads.
-# This configuration is optimized based on the provided workload data, tuning guide,
-# and sample configurations.
+# This configuration is derived from an analysis of workload statistics,
+# GCSfuse tuning guides, and sample configurations for AI/ML workloads.
 
-# Allows GCSFuse to infer the existence of directories without explicit GCS objects.
-# This is a common setting for performance in all sample configurations.
+# The workload is identified as 'training' due to the high number of random reads
+# (RandomReadCount: 60, SequentialReadCount: 0) and significant file lookup
+# operations (LookUpInode: 601).
+
+# General settings for convenience and compatibility with common tools.
 implicit-dirs: true
 
-# Aggressive metadata caching to reduce API calls to GCS, improving performance for
-# workloads with many file lookups and attribute checks.
+# Metadata caching is configured aggressively to minimize GCS API calls for
+# metadata lookups, which are frequent in this workload. This assumes the
+# training data is not modified during the job run.
 metadata-cache:
-  # Keep cached metadata indefinitely. This is optimal for read-heavy workloads or
-  # "write-to-new" patterns where objects in GCS are not modified by other processes
-  # during the job.
+  # Cache metadata for the lifetime of the mount to avoid re-fetching.
   ttl-secs: -1
-
-  # Disable caching for lookups of files/directories that do not exist. This helps
-  # maintain consistency in distributed environments where files might be created
-  # by one process and accessed by another shortly after.
+  # Disable caching for non-existent files. This prevents issues where a file
+  # is created by another process and is not seen due to a stale negative cache entry.
   negative-ttl-secs: 0
-
-  # Allow the stat cache (file attributes) to use unlimited memory, ensuring all
-  # accessed file metadata is cached.
+  # Allow the file attribute (stat) cache to use unlimited memory.
   stat-cache-max-size-mb: -1
-
-  # Allow the type cache (file vs. directory) to use unlimited memory.
+  # Allow the file/directory type cache to use unlimited memory.
   type-cache-max-size-mb: -1
 
-# --- File Cache Configuration (Conditional) ---
-# The file cache is recommended for training ONLY if the dataset is accessed
-# multiple times (e.g., multi-epoch training) AND the dataset size is small
-# enough to fit on the local cache disk to avoid thrashing.
-#
-# As per the instructions, this section is commented out. Uncomment and configure
-# if your workload meets the criteria.
+# File caching is enabled to improve performance for the random-read-heavy
+# workload. It is assumed the dataset can fit into the specified cache directory.
+cache-dir: /tmp
+file-cache:
+  # Use the entire available space in the cache directory.
+  max-size-mb: -1
+  # When any part of a file is read, cache the entire file in the background.
+  # This is highly beneficial for workloads with many random reads on the same file(s).
+  cache-file-for-range-read: true
+  # Parallel downloads are generally not recommended for random-read training workloads
+  # and are therefore disabled.
 
-# cache-dir: /tmp
-# file-cache:
-#  # Set to -1 to use the entire available cache space, or specify a size in MiB.
-#  max-size-mb: -1
-#
-#  # For random-read workloads, this caches the entire file asynchronously on the
-#  # first read. This significantly speeds up subsequent random reads to any
-#  # part of the same file.
-#  cache-file-for-range-read: true
+# Write settings are omitted as the workload is primarily read-focused, although it
+# contains some write operations. For more write-intensive checkpointing,
+# enable-streaming-writes would be recommended.
 ```

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -85,21 +84,6 @@ func consolidateTextFiles(folderPath string) (string, error) {
 	return builder.String(), nil
 }
 
-func uploadFolder(ctx context.Context, folderPath string, client *genai.Client) []genai.FileData {
-	filesData := make([]genai.FileData, 0)
-	filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
-		if info == nil {
-			return nil
-		}
-		if !info.IsDir() {
-			filesData = append(filesData, uploadFile(ctx, path, client))
-		}
-		return nil
-	})
-
-	return filesData
-}
-
 func getClient(ctx context.Context) *genai.Client {
 	// Access your API key from the environment variable.
 	apiKey := os.Getenv("GEMINI_API_KEY")
@@ -115,101 +99,34 @@ func getClient(ctx context.Context) *genai.Client {
 	return client
 }
 
-type CacheEntry struct {
-	FilesData   []genai.FileData
-	LastUpdated time.Time
-}
-
-func loadCache(cacheFile string) (map[string]CacheEntry, error) {
-	cache := make(map[string]CacheEntry)
-	file, err := os.Open(cacheFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cache, nil // Return empty cache if file doesn't exist
-		}
-		return nil, err
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&cache)
-	if err != nil {
-		return nil, err
-	}
-	return cache, nil
-}
-
-func saveCache(cacheFile string, cache map[string]CacheEntry) error {
-	file, err := os.Create(cacheFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	return encoder.Encode(cache)
-}
-
-func getFilesData(ctx context.Context, client *genai.Client, cacheFile string, tuningGuidePath string, sampleConfigFolder string) []genai.FileData {
-	cache, err := loadCache(cacheFile)
-	if err != nil {
-		log.Printf("Error loading cache: %v\n", err)
-	}
-
-	cacheKey := "all_files" // You can create more sophisticated keys if needed
-	cachedData, found := cache[cacheKey]
-
-	if found && time.Since(cachedData.LastUpdated) < 24*time.Hour {
-		log.Println("Using cached file URIs")
-		return cachedData.FilesData
-	}
-
-	log.Println("Uploading files and updating cache...")
-
-	// filesData := make([]genai.FileData, 0)
-	filesData := append(uploadFolder(ctx, sampleConfigFolder, client), uploadFile(ctx, tuningGuidePath, client))
-	// filesData := uploadFolder(ctx, sampleConfigFolder, client)
-	// filesData = append(filesData, uploadFile(ctx, tuningGuidePath, client))
-
-	cache[cacheKey] = CacheEntry{
-		FilesData:   filesData,
-		LastUpdated: time.Now(),
-	}
-	if err := saveCache(cacheFile, cache); err != nil {
-		log.Printf("Error saving cache: %v\n", err)
-	}
-
-	return filesData
-}
-
 func main() {
 	ctx := context.Background()
 
 	client := getClient(ctx)
-
+	defer client.Close()
 	model := client.GenerativeModel("gemini-2.5-pro") // Select the model.
 
-	// tuningGuidePath := "/home/abhishekmgupta_google_com/go-core/ai/GCSFuseTuningGuideFinal.pdf" // Path to your tuning guide.
+	// Read all the sample config files and create a single string with all the content
 	sampleConfigFolder := "/home/abhishekmgupta_google_com/go-core/ai/samples" // Path to your sample configurations.
-	// cacheFile := "/home/abhishekmgupta_google_com/go-core/ai/file_cache.json"              // Path to the cache file.
-
 	folderContent, err := consolidateTextFiles(sampleConfigFolder)
 	if err != nil {
 		log.Fatalf("Error consolidating text files: %v", err)
 	}
+
+	// Read the tuning guide which is a PDF.
+	// tuningGuidePath := "/home/abhishekmgupta_google_com/go-core/ai/GCSFuseTuningGuideFinal.pdf" // Path to your tuning guide.
 	// tuningGuideData := uploadFile(ctx, tuningGuidePath, client)
 	tuningGuideData := genai.FileData{
 		MIMEType: "application/pdf",
-		URI:      "https://generativelanguage.googleapis.com/v1beta/files/eb2jxbyh0dn0",
+		URI:      "https://generativelanguage.googleapis.com/v1beta/files/eb2jxbyh0dn0", // Using the cached URI
 	}
 
-	// filesData := getFilesData(ctx, client, cacheFile, tuningGuidePath, sampleConfigFolder)
+	// Read the workload details. We will determine the gcsfuse config based on these details.
 	workloadFilePath := "/home/abhishekmgupta_google_com/go-core/ai/workload_details.txt"
 	workloadData, err := os.ReadFile(workloadFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	workloadDetails := "Start of workload data\n" + string(workloadData) + "\nEnd of workload data\n"
 
 	// Prepare the prompt.
