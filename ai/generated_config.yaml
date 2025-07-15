@@ -1,0 +1,47 @@
+```yaml
+# GCSFuse config for a training workload with high random reads.
+# This configuration is optimized based on the provided workload data, tuning guide,
+# and sample configurations.
+
+# Allows GCSFuse to infer the existence of directories without explicit GCS objects.
+# This is a common setting for performance in all sample configurations.
+implicit-dirs: true
+
+# Aggressive metadata caching to reduce API calls to GCS, improving performance for
+# workloads with many file lookups and attribute checks.
+metadata-cache:
+  # Keep cached metadata indefinitely. This is optimal for read-heavy workloads or
+  # "write-to-new" patterns where objects in GCS are not modified by other processes
+  # during the job.
+  ttl-secs: -1
+
+  # Disable caching for lookups of files/directories that do not exist. This helps
+  # maintain consistency in distributed environments where files might be created
+  # by one process and accessed by another shortly after.
+  negative-ttl-secs: 0
+
+  # Allow the stat cache (file attributes) to use unlimited memory, ensuring all
+  # accessed file metadata is cached.
+  stat-cache-max-size-mb: -1
+
+  # Allow the type cache (file vs. directory) to use unlimited memory.
+  type-cache-max-size-mb: -1
+
+# --- File Cache Configuration (Conditional) ---
+# The file cache is recommended for training ONLY if the dataset is accessed
+# multiple times (e.g., multi-epoch training) AND the dataset size is small
+# enough to fit on the local cache disk to avoid thrashing.
+#
+# As per the instructions, this section is commented out. Uncomment and configure
+# if your workload meets the criteria.
+
+# cache-dir: /tmp
+# file-cache:
+#  # Set to -1 to use the entire available cache space, or specify a size in MiB.
+#  max-size-mb: -1
+#
+#  # For random-read workloads, this caches the entire file asynchronously on the
+#  # first read. This significantly speeds up subsequent random reads to any
+#  # part of the same file.
+#  cache-file-for-range-read: true
+```
