@@ -1,0 +1,42 @@
+```yaml
+# GCSFuse config for a training workload with high random reads.
+# This configuration is derived from an analysis of workload statistics,
+# GCSfuse tuning guides, and sample configurations for AI/ML workloads.
+
+# The workload is identified as 'training' due to the high number of random reads
+# (RandomReadCount: 60, SequentialReadCount: 0) and significant file lookup
+# operations (LookUpInode: 601).
+
+# General settings for convenience and compatibility with common tools.
+implicit-dirs: true
+
+# Metadata caching is configured aggressively to minimize GCS API calls for
+# metadata lookups, which are frequent in this workload. This assumes the
+# training data is not modified during the job run.
+metadata-cache:
+  # Cache metadata for the lifetime of the mount to avoid re-fetching.
+  ttl-secs: -1
+  # Disable caching for non-existent files. This prevents issues where a file
+  # is created by another process and is not seen due to a stale negative cache entry.
+  negative-ttl-secs: 0
+  # Allow the file attribute (stat) cache to use unlimited memory.
+  stat-cache-max-size-mb: -1
+  # Allow the file/directory type cache to use unlimited memory.
+  type-cache-max-size-mb: -1
+
+# File caching is enabled to improve performance for the random-read-heavy
+# workload. It is assumed the dataset can fit into the specified cache directory.
+cache-dir: /tmp
+file-cache:
+  # Use the entire available space in the cache directory.
+  max-size-mb: -1
+  # When any part of a file is read, cache the entire file in the background.
+  # This is highly beneficial for workloads with many random reads on the same file(s).
+  cache-file-for-range-read: true
+  # Parallel downloads are generally not recommended for random-read training workloads
+  # and are therefore disabled.
+
+# Write settings are omitted as the workload is primarily read-focused, although it
+# contains some write operations. For more write-intensive checkpointing,
+# enable-streaming-writes would be recommended.
+```
