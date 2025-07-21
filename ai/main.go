@@ -107,22 +107,22 @@ func main() {
 	model := client.GenerativeModel("gemini-2.5-pro") // Select the model.
 
 	// Read all the sample config files and create a single string with all the content
-	sampleConfigFolder := "/home/abhishekmgupta_google_com/go-core/ai/samples" // Path to your sample configurations.
+	sampleConfigFolder := "/home/princer_google_com/dev/go-core/ai/samples" // Path to your sample configurations.
 	folderContent, err := consolidateTextFiles(sampleConfigFolder)
 	if err != nil {
 		log.Fatalf("Error consolidating text files: %v", err)
 	}
 
 	// Read the tuning guide which is a PDF.
-	// tuningGuidePath := "/home/abhishekmgupta_google_com/go-core/ai/GCSFuseTuningGuideFinal.pdf" // Path to your tuning guide.
+	// tuningGuidePath := "/home/princer_google_com/dev/go-core/ai/GCSFuseTuningGuideFinal.pdf" // Path to your tuning guide.
 	// tuningGuideData := uploadFile(ctx, tuningGuidePath, client)
 	tuningGuideData := genai.FileData{
 		MIMEType: "application/pdf",
-		URI:      "https://generativelanguage.googleapis.com/v1beta/files/eb2jxbyh0dn0", // Using the cached URI
+		URI:      "https://generativelanguage.googleapis.com/v1beta/files/cw1ho6k603w2", // Using the cached URI
 	}
 
 	// Read the workload details. We will determine the gcsfuse config based on these details.
-	workloadFilePath := "/home/abhishekmgupta_google_com/go-core/ai/workload_details.txt"
+	workloadFilePath := "/home/princer_google_com/workload_insight.yaml"
 	workloadData, err := os.ReadFile(workloadFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -134,7 +134,9 @@ func main() {
 				   I have also added some sample gcsfuse configs for gpu and tpu for checkpointing, serving and training workload.
 				   Give equal importance to all sources and combine the details from all these sources.
 				   Checkpointing is primarily write workload. Serving is mostly sequential read workload. Training is mostly random read workload.
-				   Use cache-dir as /tmp if cache-dir is needed. File cache should be enabled only when the workload is not too big and can fit in the disk`
+				   Use cache-dir as /tmp if cache-dir is needed. File cache should be enabled only when the workload is not too big and can fit in the disk.
+				   Also, suggest lesser value of sequential-read-size-mb for example, 1MB, 2MB, 4MB. for random read workloads.`
+
 	promptQuery := `Generate a config for GCSFuse for the provided workload.
 	               Just generate a YAML file which can be saved directly to a file. `
 
@@ -165,8 +167,18 @@ func main() {
 	}
 
 	// Save the generated config to a file.
-	outputFile := "/home/abhishekmgupta_google_com/go-core/ai/generated_config.yaml"
-	err = os.WriteFile(outputFile, responseContent.Bytes(), 0644)
+	outputFile := "/home/princer_google_com/go-core/ai/generated_gcsfuse_config.yaml"
+	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
+		log.Fatalf("Error creating output directory: %v", err)
+	}
+
+	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalf("Error opening output file: %v", err)
+	}
+	defer f.Close()
+
+	_, err = f.Write(responseContent.Bytes())
 	if err != nil {
 		log.Printf("Error saving generated config: %v\n", err)
 		fmt.Println(responseContent.String()) // Print to console as fallback
